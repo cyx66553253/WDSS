@@ -56,7 +56,7 @@
       let stream, recorder, recognition, chunks = [], recording = false, shouldListen = false, audioUrl;
       let playingSavedAudio = false;
       let audioContext, analyser, samples, silenceStartedAt = 0, silenceFrame;
-      const SILENCE_LIMIT_MS = 3000;
+      const SILENCE_LIMIT_MS = 3750;
       const SOUND_THRESHOLD = 0.015; // 可按实际麦克风灵敏度微调（0 到 1）
 
       const setStatus = (text, mode = '') => { status.className = `status ${mode}`; statusText.textContent = text; };
