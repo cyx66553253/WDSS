@@ -31,7 +31,7 @@
         <li>當停止說話後，系統會自動重複剛才唸出的內容</li>
       </ol>
     </div>
-    <div id="status" class="status"><i class="dot"></i><span id="statusText">尚未开启监听</span></div>
+    <div id="status" class="status"><i class="dot"></i><span id="statusText">尚未開啟監聽</span></div>
     <div class="buttons">
       <button id="listenBtn">開始監聽</button>
       <button id="stopBtn" class="stop" disabled>停止監聽</button>
@@ -119,7 +119,7 @@
         silenceStartedAt = 0;
         if (recorder.state !== 'inactive') recorder.stop();
         stopBtn.disabled = true;
-        setStatus('录音已停止，正在生成音频…');
+        setStatus('錄音已停止，正在產生音訊…');
       }
       function monitorSilence() {
         if (!recording) return;
@@ -150,10 +150,10 @@
         recorder.start(); recording = true; stopBtn.disabled = false;
         silenceStartedAt = performance.now();
         monitorSilence();
-        setStatus('正在录音… 静音 3.5 秒后自动结束', 'recording');
+        setStatus('正在錄音… 靜音 3.5 秒後自動結束', 'recording');
       }
       function beginRecognition() {
-        if (!Recognition) { setStatus('此浏览器不支持语音识别，请使用 Chrome 或 Edge'); return; }
+        if (!Recognition) { setStatus('此瀏覽器不支援語音辨識，請使用 Chrome 或 Edge'); return; }
         recognition = new Recognition();
         recognition.lang = 'zh-TW'; recognition.continuous = true; recognition.interimResults = true;
         recognition.onresult = event => {
@@ -170,7 +170,7 @@
         };
         recognition.onerror = e => {
           if (e.error === 'no-speech' || e.error === 'aborted') return;
-          setStatus(`语音识别出错：${e.error}`);
+          setStatus(`語音辨識發生錯誤：${e.error}`);
         };
         recognition.onend = () => { if (shouldListen && !playingSavedAudio) { try { recognition.start(); } catch (_) {} } };
         recognition.start();
@@ -179,7 +179,7 @@
         if (!playingSavedAudio) return;
         playingSavedAudio = false;
         if (shouldListen) {
-          setStatus('正在监听，请说“开始”', 'listening');
+          setStatus('正在監聽，請說「開始」', 'listening');
           try { recognition.start(); } catch (_) {}
         }
       }
@@ -194,14 +194,14 @@
           }
           if (audioContext.state === 'suspended') await audioContext.resume();
           shouldListen = true; listenBtn.disabled = true;
-          setStatus('正在监听，请说“开始”', 'listening'); beginRecognition();
-        } catch (error) { setStatus(`无法使用麦克风：${error.message}`); }
+          setStatus('正在監聽，請說「開始」', 'listening'); beginRecognition();
+        } catch (error) { setStatus(`無法使用麥克風：${error.message}`); }
       }
       listenBtn.addEventListener('click', () => { recordUsage('listen_start'); enable(); }); stopBtn.addEventListener('click', stopRecording);
       player.addEventListener('play', () => {
         playingSavedAudio = true;
         if (recognition) recognition.abort();
-        setStatus('正在播放录音，播放结束后自动恢复监听');
+        setStatus('正在播放錄音，播放結束後自動恢復監聽');
       });
       player.addEventListener('pause', resumeListeningAfterPlayback);
       player.addEventListener('ended', resumeListeningAfterPlayback);
