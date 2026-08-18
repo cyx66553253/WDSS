@@ -1,0 +1,39 @@
+$port = 8080
+$page = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'index.html'
+$listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $port)
+
+try {
+  $listener.Start()
+  Write-Host "Local page: http://localhost:$port/"
+  Write-Host "Keep this window open. Press Ctrl+C to stop."
+
+  while ($true) {
+    $client = $listener.AcceptTcpClient()
+    try {
+      $stream = $client.GetStream()
+      $stream.ReadTimeout = 1500
+      $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
+      $requestLine = $reader.ReadLine()
+      while ($reader.ReadLine()) { }
+
+      $isPageRequest = $requestLine -match '^GET\s+/(?:index\.html)?(?:\?[^ ]*)?\s+HTTP/'
+      if ($isPageRequest) {
+        $body = [IO.File]::ReadAllBytes($page)
+        $headerLines = @('HTTP/1.1 200 OK', 'Content-Type: text/html; charset=utf-8', ('Content-Length: ' + $body.Length), 'Connection: close', '', '')
+      } else {
+        $body = [Text.Encoding]::UTF8.GetBytes('Not found')
+        $headerLines = @('HTTP/1.1 404 Not Found', 'Content-Type: text/plain; charset=utf-8', ('Content-Length: ' + $body.Length), 'Connection: close', '', '')
+      }
+      $header = $headerLines -join [Environment]::NewLine
+      $headerBytes = [Text.Encoding]::ASCII.GetBytes($header)
+      $stream.Write($headerBytes, 0, $headerBytes.Length)
+      $stream.Write($body, 0, $body.Length)
+    } catch {
+      # A browser preconnect may open a socket without sending a request. Close it and serve the next one.
+    } finally {
+      $client.Close()
+    }
+  }
+} finally {
+  $listener.Stop()
+}

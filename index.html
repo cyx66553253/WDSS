@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>阿茲塔瑞記憶遊戲助手</title>
+  <style>
+    :root { color-scheme: dark; --ink:#edf2ff; --muted:#aeb9d1; --card:#171c29; --edge:#303b55; --accent:#68e1b5; --danger:#ff707d; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; font-family:system-ui,"Microsoft YaHei",sans-serif; color:var(--ink); background:radial-gradient(circle at 20% 0,#283763,transparent 43%),#0d1018; }
+    main { width:min(620px,100%); background:color-mix(in srgb,var(--card) 92%,transparent); border:1px solid var(--edge); border-radius:24px; padding:clamp(24px,5vw,44px); box-shadow:0 26px 70px #0008; }
+    .eyebrow { margin:0 0 4px; color:var(--accent); font-size:.9rem; font-weight:800; letter-spacing:.08em; } h1 { margin:0 0 14px; font-size:clamp(1.7rem,5vw,2.5rem); } p { color:var(--muted); line-height:1.65; } .instructions { color:var(--muted); line-height:1.6; } .instructions strong { color:var(--ink); } .instructions ol { margin:7px 0 20px; padding-left:1.45em; }
+    .status { display:flex; align-items:center; gap:12px; margin:28px 0; padding:16px; border:1px solid var(--edge); border-radius:14px; font-weight:650; }
+    .dot { width:13px; height:13px; border-radius:50%; background:#71809f; flex:none; }.listening .dot { background:var(--accent); box-shadow:0 0 0 7px #68e1b526; }.recording .dot { background:var(--danger); animation:pulse 1.1s infinite; } @keyframes pulse { 50%{box-shadow:0 0 0 10px #ff707d20;} }
+    .buttons { display:flex; flex-wrap:wrap; gap:12px; } button { border:0; border-radius:11px; padding:12px 17px; font:inherit; font-weight:700; cursor:pointer; color:#08141a; background:var(--accent); }.stop { color:white; background:#b9404d; } button:disabled { opacity:.5; cursor:not-allowed; }
+    .heard { min-height:5.3em; display:grid; place-items:center; margin:20px 0 0; padding:18px; border-radius:14px; background:#0d111b; color:#fff; font-size:clamp(1.5rem,5.5vw,2.8rem); font-weight:800; line-height:1.35; text-align:center; word-break:break-word; } .sequence-label { color:var(--accent); margin-right:.35em; } audio { width:100%; margin-top:22px; } .note { font-size:.86rem; margin-top:22px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">12.1雙問號</p>
+    <h1>阿茲塔瑞 記憶遊戲助手</h1>
+    <div class="instructions">
+      <strong>使用方法：</strong>
+      <ol>
+        <li>戰鬥開始前，點擊「開始監聽」，並給予麥克風權限。</li>
+        <li>戰鬥進入記憶遊戲階段時，請說「開始」，隨後唸出光柱顏色順序。</li>
+        <li>當停止說話 3 秒後，系統會自動重複剛才唸出的內容。</li>
+      </ol>
+    </div>
+    <div id="status" class="status"><i class="dot"></i><span id="statusText">尚未开启监听</span></div>
+    <div class="buttons">
+      <button id="listenBtn">開始監聽</button>
+      <button id="stopBtn" class="stop" disabled>停止監聽</button>
+    </div>
+    <div id="heard" class="heard" aria-live="polite">您唸出的內容會顯示在這裡供參考</div>
+    <audio id="player" controls hidden></audio>
+  </main>
+  <script>
+    (() => {
+      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const $ = id => document.getElementById(id);
+      const status = $('status'), statusText = $('statusText'), heard = $('heard');
+      const listenBtn = $('listenBtn'), stopBtn = $('stopBtn');
+      const player = $('player');
+      let stream, recorder, recognition, chunks = [], recording = false, shouldListen = false, audioUrl;
+      let playingSavedAudio = false;
+      let audioContext, analyser, samples, silenceStartedAt = 0, silenceFrame;
+      const SILENCE_LIMIT_MS = 3000;
+      const SOUND_THRESHOLD = 0.015; // 可按实际麦克风灵敏度微调（0 到 1）
+
+      const setStatus = (text, mode = '') => { status.className = `status ${mode}`; statusText.textContent = text; };
+      const isStart = text => /(開始|开始)/.test(text);
+      const isStop = text => /(停止|結束|结束|停一下|停)/.test(text);
+      function showSequence(text) {
+        const sequence = text.split(/開始|开始/).pop().replace(/(?:停止|結束|结束|停一下|停)\s*$/, '').trim();
+        const label = document.createElement('span');
+        label.className = 'sequence-label';
+        label.textContent = '本輪順序：';
+        heard.replaceChildren(label, document.createTextNode(sequence || '等待唸出順序…'));
+      }
+
+      async function getStream() {
+        if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return stream;
+      }
+      function saveRecording() {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        player.pause();
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        audioUrl = URL.createObjectURL(blob);
+        player.src = audioUrl;
+        player.currentTime = 0;
+        player.load();
+        player.hidden = false;
+        playingSavedAudio = true;
+        if (recognition) recognition.abort();
+        setStatus('錄音完成，正在準備播放');
+        const playLatest = () => {
+          if (player.src !== audioUrl) return;
+          player.currentTime = 0;
+          player.play().catch(() => {
+            playingSavedAudio = false;
+            if (shouldListen) setStatus('錄音已完成，請點擊播放器播放', 'listening');
+          });
+        };
+        if (player.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) playLatest();
+        else player.addEventListener('canplay', playLatest, { once: true });
+      }
+      function stopRecording() {
+        if (!recording) return;
+        recording = false;
+        cancelAnimationFrame(silenceFrame);
+        silenceStartedAt = 0;
+        if (recorder.state !== 'inactive') recorder.stop();
+        stopBtn.disabled = true;
+        setStatus('录音已停止，正在生成音频…');
+      }
+      function monitorSilence() {
+        if (!recording) return;
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (const value of samples) {
+          const level = (value - 128) / 128;
+          sum += level * level;
+        }
+        const volume = Math.sqrt(sum / samples.length);
+        const now = performance.now();
+        if (volume >= SOUND_THRESHOLD) {
+          silenceStartedAt = 0;
+        } else if (!silenceStartedAt) {
+          silenceStartedAt = now;
+        } else if (now - silenceStartedAt >= SILENCE_LIMIT_MS) {
+          stopRecording();
+          return;
+        }
+        silenceFrame = requestAnimationFrame(monitorSilence);
+      }
+      function startRecording() {
+        if (recording) return;
+        chunks = [];
+        recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? { mimeType: 'audio/webm;codecs=opus' } : undefined);
+        recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        recorder.onstop = saveRecording;
+        recorder.start(); recording = true; stopBtn.disabled = false;
+        silenceStartedAt = performance.now();
+        monitorSilence();
+        setStatus('正在录音… 静音 3 秒后自动结束', 'recording');
+      }
+      function beginRecognition() {
+        if (!Recognition) { setStatus('此浏览器不支持语音识别，请使用 Chrome 或 Edge'); return; }
+        recognition = new Recognition();
+        recognition.lang = 'zh-TW'; recognition.continuous = true; recognition.interimResults = true;
+        recognition.onresult = event => {
+          let text = '', freshText = '';
+          for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript;
+          for (let i = event.resultIndex; i < event.results.length; i++) freshText += event.results[i][0].transcript;
+          if (!recording && isStart(freshText)) {
+            startRecording();
+            showSequence(text);
+          } else if (recording) {
+            showSequence(text);
+            if (isStop(freshText)) stopRecording();
+          }
+        };
+        recognition.onerror = e => {
+          if (e.error === 'no-speech' || e.error === 'aborted') return;
+          setStatus(`语音识别出错：${e.error}`);
+        };
+        recognition.onend = () => { if (shouldListen && !playingSavedAudio) { try { recognition.start(); } catch (_) {} } };
+        recognition.start();
+      }
+      function resumeListeningAfterPlayback() {
+        if (!playingSavedAudio) return;
+        playingSavedAudio = false;
+        if (shouldListen) {
+          setStatus('正在监听，请说“开始”', 'listening');
+          try { recognition.start(); } catch (_) {}
+        }
+      }
+      async function enable() {
+        try {
+          await getStream();
+          if (!audioContext) {
+            audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser(); analyser.fftSize = 2048;
+            samples = new Uint8Array(analyser.fftSize); source.connect(analyser);
+          }
+          if (audioContext.state === 'suspended') await audioContext.resume();
+          shouldListen = true; listenBtn.disabled = true;
+          setStatus('正在监听，请说“开始”', 'listening'); beginRecognition();
+        } catch (error) { setStatus(`无法使用麦克风：${error.message}`); }
+      }
+      listenBtn.addEventListener('click', enable); stopBtn.addEventListener('click', stopRecording);
+      player.addEventListener('play', () => {
+        playingSavedAudio = true;
+        if (recognition) recognition.abort();
+        setStatus('正在播放录音，播放结束后自动恢复监听');
+      });
+      player.addEventListener('pause', resumeListeningAfterPlayback);
+      player.addEventListener('ended', resumeListeningAfterPlayback);
+      window.addEventListener('beforeunload', () => { cancelAnimationFrame(silenceFrame); if (audioContext) audioContext.close(); if (stream) stream.getTracks().forEach(track => track.stop()); if (audioUrl) URL.revokeObjectURL(audioUrl); });
+    })();
+  </script>
+</body>
+</html>
