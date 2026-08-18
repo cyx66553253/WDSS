@@ -24,9 +24,9 @@ try {
         '/' { $file = $page; $contentType = 'text/html; charset=utf-8' }
         '/index.html' { $file = $page; $contentType = 'text/html; charset=utf-8' }
         '/images/author.jpg' { $file = Join-Path $root 'images\author.jpg'; $contentType = 'image/jpeg' }
-        '/images/Bilibili.webp' { $file = Join-Path $root 'images\Bilibili.webp'; $contentType = 'image/webp' }
+        '/images/bilibili.svg' { $file = Join-Path $root 'images\bilibili.svg'; $contentType = 'image/svg+xml' }
         '/images/example.jpg' { $file = Join-Path $root 'images\example.jpg'; $contentType = 'image/jpeg' }
-        '/images/Twitch.png' { $file = Join-Path $root 'images\Twitch.png'; $contentType = 'image/png' }
+        '/images/twitch.svg' { $file = Join-Path $root 'images\twitch.svg'; $contentType = 'image/svg+xml' }
       }
       if ($file -and (Test-Path -LiteralPath $file -PathType Leaf)) {
         $body = [IO.File]::ReadAllBytes($file)
