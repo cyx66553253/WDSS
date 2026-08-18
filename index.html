@@ -57,7 +57,7 @@
       let stream, recorder, recognition, chunks = [], recording = false, shouldListen = false, audioUrl;
       let playingSavedAudio = false;
       let audioContext, analyser, samples, silenceStartedAt = 0, silenceFrame;
-      const SILENCE_LIMIT_MS = 3500;
+      const SILENCE_LIMIT_MS = 3250;
       const SOUND_THRESHOLD = 0.015; // 可按实际麦克风灵敏度微调（0 到 1）
 
       const setStatus = (text, mode = '') => { status.className = `status ${mode}`; statusText.textContent = text; };
@@ -150,7 +150,7 @@
         recorder.start(); recording = true; stopBtn.disabled = false;
         silenceStartedAt = performance.now();
         monitorSilence();
-        setStatus('正在錄音… 靜音 3.5 秒後自動結束', 'recording');
+        setStatus('正在錄音… 靜音 3.25 秒後自動結束', 'recording');
       }
       function beginRecognition() {
         if (!Recognition) { setStatus('此瀏覽器不支援語音辨識，請使用 Chrome 或 Edge'); return; }
