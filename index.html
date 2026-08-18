@@ -40,7 +40,7 @@
     <div id="heard" class="heard" aria-live="polite">唸出的內容會顯示在這裡</div>
     <audio id="player" controls hidden></audio>
     <div class="author"><span>作者</span><img class="author-avatar" src="images/author.jpg" alt="神聖小喵頭像" /><a href="https://space.bilibili.com/367050" target="_blank" rel="noopener noreferrer"><img class="platform-logo" src="images/Bilibili-logo.webp" alt="Bilibili" />B站-神聖小喵</a><a href="https://www.twitch.tv/meowgamingchannel" target="_blank" rel="noopener noreferrer"><img class="platform-logo" src="images/Twitchi-logo.png" alt="Twitch" />Twitch-神聖小喵</a></div>
-    <div id="usageStats" class="usage-stats" aria-live="polite">使用統計載入中…</div>
+    <div id="usageStats" class="usage-stats" aria-live="polite">頁面瀏覽載入中…</div>
   </main>
   <aside class="example-card">
     <img src="images/example.jpg" alt="光柱擺放範例" />
@@ -71,7 +71,7 @@
         heard.replaceChildren(label, document.createTextNode(sequence || '等待唸出順序…'));
       }
       function showUsageStats({ pageViews, listenStarts }) {
-        usageStats.textContent = `使用統計：瀏覽 ${Number(pageViews).toLocaleString()} 次 · 開始監聽 ${Number(listenStarts).toLocaleString()} 次`;
+        usageStats.textContent = `頁面瀏覽 ${Number(pageViews).toLocaleString()} 次 · 功能啟用 ${Number(listenStarts).toLocaleString()} 次`;
       }
       async function recordUsage(event) {
         try {
@@ -81,7 +81,7 @@
           if (!response.ok) throw new Error('Counter request failed');
           showUsageStats(await response.json());
         } catch (_) {
-          usageStats.textContent = '使用統計將在部署網站後顯示';
+          usageStats.textContent = '頁面瀏覽與功能啟用統計將在部署網站後顯示';
         }
       }
 
