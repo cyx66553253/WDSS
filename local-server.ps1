@@ -1,5 +1,6 @@
 $port = 8080
-$page = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'index.html'
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$page = Join-Path $root 'index.html'
 $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $port)
 
 try {
@@ -16,10 +17,18 @@ try {
       $requestLine = $reader.ReadLine()
       while ($reader.ReadLine()) { }
 
-      $isPageRequest = $requestLine -match '^GET\s+/(?:index\.html)?(?:\?[^ ]*)?\s+HTTP/'
-      if ($isPageRequest) {
-        $body = [IO.File]::ReadAllBytes($page)
-        $headerLines = @('HTTP/1.1 200 OK', 'Content-Type: text/html; charset=utf-8', ('Content-Length: ' + $body.Length), 'Connection: close', '', '')
+      $requestPath = ([regex]::Match($requestLine, '^GET\s+([^ ]+)\s+HTTP/').Groups[1].Value -replace '\?.*$', '')
+      $file = $null
+      $contentType = $null
+      switch ($requestPath) {
+        '/' { $file = $page; $contentType = 'text/html; charset=utf-8' }
+        '/index.html' { $file = $page; $contentType = 'text/html; charset=utf-8' }
+        '/images/author.jpg' { $file = Join-Path $root 'images\author.jpg'; $contentType = 'image/jpeg' }
+        '/images/example.jpg' { $file = Join-Path $root 'images\example.jpg'; $contentType = 'image/jpeg' }
+      }
+      if ($file -and (Test-Path -LiteralPath $file -PathType Leaf)) {
+        $body = [IO.File]::ReadAllBytes($file)
+        $headerLines = @('HTTP/1.1 200 OK', ('Content-Type: ' + $contentType), ('Content-Length: ' + $body.Length), 'Connection: close', '', '')
       } else {
         $body = [Text.Encoding]::UTF8.GetBytes('Not found')
         $headerLines = @('HTTP/1.1 404 Not Found', 'Content-Type: text/plain; charset=utf-8', ('Content-Length: ' + $body.Length), 'Connection: close', '', '')
